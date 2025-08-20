@@ -3586,16 +3586,16 @@ class GenerationMixin(ContinuousMixin):
                     generation_config.compile_config.fullgraph = False
             model_forward = self.get_compiled_call(generation_config.compile_config)
 
-        if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+        if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
             prefill_time, decode_time = 0, 0
 
         if generation_config.prefill_chunk_size is not None:
-            if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+            if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                 prefill_start = torch.cuda.Event(enable_timing=True)
                 prefill_end = torch.cuda.Event(enable_timing=True)
                 prefill_start.record()
             model_kwargs = self._prefill_chunking(input_ids, generation_config, **model_kwargs)
-            if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+            if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                 torch.cuda.synchronize()
                 prefill_end.record()
                 torch.cuda.synchronize()
@@ -3615,14 +3615,14 @@ class GenerationMixin(ContinuousMixin):
             model_inputs.update({"output_hidden_states": output_hidden_states} if output_hidden_states else {})
 
             if is_prefill:
-                if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+                if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                     prefill_start = torch.cuda.Event(enable_timing=True)
                     prefill_end = torch.cuda.Event(enable_timing=True)
                     prefill_start.record()
                 
                 outputs = self(**model_inputs, return_dict=True)
                 
-                if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+                if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                     torch.cuda.synchronize()
                     prefill_end.record()
                     torch.cuda.synchronize()
@@ -3630,11 +3630,11 @@ class GenerationMixin(ContinuousMixin):
                 
                 is_prefill = False
             else:
-                if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+                if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                     if is_first_decode_step:
                         from tqdm import tqdm
                         pbar = tqdm(total=generation_config.max_new_tokens, desc="Decoding",
-                                    disable=(os.environ.get("JetLM_DISABLE_DECODE_BAR", "0") in ["1", "true", "True"]))
+                                    disable=(os.environ.get("JET_DISABLE_DECODE_BAR", "0") in ["1", "true", "True"]))
 
                     decode_start = torch.cuda.Event(enable_timing=True)
                     decode_end = torch.cuda.Event(enable_timing=True)
@@ -3642,7 +3642,7 @@ class GenerationMixin(ContinuousMixin):
                 outputs = model_forward(**model_inputs, return_dict=True)
                 is_first_decode_step = False
 
-                if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+                if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                     torch.cuda.synchronize()
                     decode_end.record()
                     torch.cuda.synchronize()
@@ -3705,14 +3705,14 @@ class GenerationMixin(ContinuousMixin):
             this_peer_finished = unfinished_sequences.max() == 0
             cur_len += 1
 
-            if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+            if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                 pbar.update(1)
 
             # This is needed to properly delete outputs.logits which may be very large for first iteration
             # Otherwise a reference to outputs is kept which keeps the logits alive in the next iteration
             del outputs
 
-        if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+        if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
             pbar.close()
 
         if streamer is not None:
@@ -3740,11 +3740,11 @@ class GenerationMixin(ContinuousMixin):
                     hidden_states=decoder_hidden_states,
                     past_key_values=model_kwargs.get("past_key_values"),
                 )
-                if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+                if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                     out = (out, prefill_time, decode_time)
                 return out
         else:
-            if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+            if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                 return input_ids, prefill_time, decode_time
             else:
                 return input_ids
@@ -5129,10 +5129,10 @@ class GenerationMixin(ContinuousMixin):
         position_ids = model_kwargs.get(position_ids_key, None)
 
         past_length = 0
-        if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+        if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
             from tqdm import tqdm
             pbar = tqdm(total=len(input_chunks), desc=f"Prefilling 0K/{round(input_ids.size(-1)/1024)}K. Mem: {torch.cuda.memory_allocated() / 1024**3:.2f}GB",
-                        disable=(os.environ.get("JetLM_DISABLE_PREFILL_BAR", "0") in ["1", "true", "True"]))
+                        disable=(os.environ.get("JET_DISABLE_PREFILL_BAR", "0") in ["1", "true", "True"]))
 
         for cid, input_chunk in enumerate(input_chunks):
             current_length = past_length + input_chunk.shape[-1]
@@ -5154,7 +5154,7 @@ class GenerationMixin(ContinuousMixin):
             model_kwargs["past_key_values"] = outputs.past_key_values
             past_length = current_length
 
-            if os.environ.get("JetLM_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
+            if os.environ.get("JET_BENCHMARK_MODE", "False") in ["True", "1", "true"]:
                 pbar.update(1)
                 pbar.set_description(f"Prefilling {round(current_length/1024)}K/{round(input_ids.size(-1)/1024)}K. Mem: {torch.cuda.memory_allocated() / 1024**3:.2f}GB")
 
